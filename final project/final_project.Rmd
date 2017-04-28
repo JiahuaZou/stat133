@@ -1,0 +1,43 @@
+---
+title: "133 final project"
+author: "Jiahua Zou, Kai Sheng, Yuan Shen, Yijun Xu, Yikang Li"
+date: ""
+output: 
+  html_document:
+    fig_height: 3
+    fig_width: 5
+---
+<!-- Don't edit in between this line and the one below -->
+```{r include=FALSE}
+# Don't delete this chunk if you are using the DataComputing package
+library(DataComputing)
+library(dplyr)
+library(tidyr)
+library(translate)
+```
+*Source file* 
+```{r, results='asis', echo=FALSE}
+includeSourceDocuments()
+```
+<!-- Don't edit the material above this line -->
+
+```{r}
+census2010 <- read.csv("/Users/jiahua/Documents/Berkeley/stat133/final project/10census.csv") # read data in as csv file
+```
+
+```{r}
+census2010_2 <- census2010 %>% select(c(1, 5, 6, 7, 8)) #only select columns concerning total population, ignoring the complication of household
+
+census2010_3 <- census2010_2 %>% filter(grepl("[[:digit:]]", X.4))
+# filter out rows that are empty
+
+colnames(census2010_3) <- c("Area", "Total_Population", "Male", "Female", "Gender Ratio")
+# Rename columns
+```
+
+
+
+
+
+
+
