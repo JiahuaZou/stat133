@@ -22,22 +22,32 @@ includeSourceDocuments()
 <!-- Don't edit the material above this line -->
 
 ```{r}
+#before this step, we use wget to scrap the spreadsheets of Chinese census of 2010 and 2000 from the official website of Chinese Bureau of Statistics. It is an XLSX document so we open it with GoogleSlide, use GOOGLETRANSLATE function to translate all Chinese into English, and then download it as CSV file.
+
 census2010 <- read.csv("/Users/jiahua/Documents/Berkeley/stat133/final project/10census.csv") # read data in as csv file
+census2000 <- read.csv("/Users/jiahua/Documents/Berkeley/stat133/final project/00census.csv")
 ```
 
 ```{r}
-census2010_2 <- census2010 %>% select(c(1, 5, 6, 7, 8)) #only select columns concerning total population, ignoring the complication of household
+modifyCSV <- function(csv) {
+  csv <- csv %>% select(c(1, 6, 7, 8, 9)) #only select columns concerning total population, ignoring the complication of household
+  
+  csv <- csv %>% filter(grepl("[[:digit:]]", X.4))
+  # filter out rows that are empty
+  
+  colnames(csv) <- c("Area", "Total", "Male", "Female", "Ratio")
+  # Rename columns
 
-census2010_3 <- census2010_2 %>% filter(grepl("[[:digit:]]", X.4))
-# filter out rows that are empty
-
-colnames(census2010_3) <- c("Area", "Total_Population", "Male", "Female", "Gender Ratio")
-# Rename columns
+  return(csv)
+}
 ```
 
-
-
-
+```{r}
+census2010_final <- modifyCSV(census2010)
+census2000_final <- modifyCSV(census2000)
+census2000_final$Area = census2010_final$Area #Create a key that we can use later to join two tables together
+combined_census <- census2000_final %>% left_join(census2010_final, by = "Area")
+```
 
 
 
