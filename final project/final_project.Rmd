@@ -1,6 +1,6 @@
 ---
 title: "133 final project"
-author: "Jiahua Zou, Kai Sheng, Yuan Shen, Yijun Xu, Yikang Li"
+author: "Jiahua Zou"
 date: ""
 output: 
   html_document:
@@ -13,7 +13,8 @@ output:
 library(DataComputing)
 library(dplyr)
 library(tidyr)
-library(translate)
+library(rpart)
+library(statisticalModeling)
 ```
 *Source file* 
 ```{r, results='asis', echo=FALSE}
@@ -26,6 +27,9 @@ includeSourceDocuments()
 
 census2010 <- read.csv("/Users/jiahua/Documents/Berkeley/stat133/final project/10census.csv") # read data in as csv file
 census2000 <- read.csv("/Users/jiahua/Documents/Berkeley/stat133/final project/00census.csv")
+census2010_age <- read.csv("/Users/jiahua/Documents/Berkeley/stat133/final project/10census_age.csv")
+census2000_age <- read.csv("/Users/jiahua/Documents/Berkeley/stat133/final project/00census_age.csv")
+census2010_ethnic <- read.csv("/Users/jiahua/Documents/Berkeley/stat133/final project/10census_ethnic.csv")
 ```
 
 ```{r}
@@ -40,6 +44,16 @@ modifyCSV <- function(csv) {
 
   return(csv)
 }
+
+modifyCSV_age <- function(csv) {
+  csv <- csv %>% filter(grepl("[[:digit:]]", X.3)) %>% 
+    select(c(1, 3, 4, 5, 6, 7, 8, 9))
+
+  colnames(csv) <- c("Age", "Total", "Male", "Female", "Total_Ratio", "Male_Ratio", "Female_Ratio", "Gender_Ratio")
+  
+  csv <- csv %>% filter(grepl("^[[:digit:]]*$", as.character(Age)))
+  return(csv)
+}
 ```
 
 ```{r}
@@ -49,5 +63,200 @@ census2000_final$Area = census2010_final$Area #Create a key that we can use late
 combined_census <- census2000_final %>% left_join(census2010_final, by = "Area")
 ```
 
+data wrangling with census data base on age and add a column year, which specifeis how many babies are born at that year, calculating from existing data
+```{r}
+census2010_age_1 <- census2010_age %>% modifyCSV_age() %>%
+  mutate(Year = c(2010:1911)) %>% filter(Year >= 1980) %>% arrange(Year)
+
+census2010_age_2 <- census2010_age_1 %>% gather(key = Gender, value = Population,
+                                              Male, Female) %>% select(Year, Gender, Population)
+
+```
+create a graph that shows the effect of one chile policy from 1980 when one-childe policy is introduced, thourgh 1991 when it became strictly enforced, till 2010.
+```{r}  
+graph1 <- census2010_age_2 %>% ggplot(aes(x = Year, y = as.numeric(as.character(Population)) / 1000000)) + geom_point() + 
+  geom_line(aes(color = Gender)) + labs(title = "Population of newborn babies(million) VS Year",y = "Population of newborn babies(million)") + geom_vline(xintercept = 1991)
+  
+
+print(graph1)
+```
+
+data wrangling to try to show change in gender ratio
+```{r}
+census2010_age_3 <- census2010_age_1 %>% gather(key = Gender, value = Ratio, Male_Ratio, Female_Ratio) %>% select(Year, Gender, Ratio, Total_Ratio) %>%
+  mutate(Gender = ifelse(as.character(Gender) == "Male_Ratio", "Male", "Female"))
+
+```
+create stack columns graph that visualize the change
+```{r}
+graph2 <- census2010_age_3 %>% ggplot(aes(x = Year, y = as.numeric(as.character(Ratio)), fill = Gender)) +
+  geom_bar(stat = "identity") + geom_vline(xintercept = 1991) + 
+  labs(title = "Gender Ratio vs Year (Height = newborn babies / total population)", y = "Gender Ratio") + 
+  geom_line(aes(x = Year, y = as.numeric(as.character(Total_Ratio))/2)) #create a line that indicate perfect gender balance
+
+print(graph2)
+```
 
 
+data wrangling to try to augment the change in gender ratio of newborn babies 
+```{r Warning = FALSE, message = FALSE}
+census2010_age_4 <- census2010_age_1 %>% mutate(Male = as.numeric(as.character(Male))/ as.numeric(as.character(Total))) %>% mutate(Female = 1 - Male) %>% 
+  gather(key = Gender, value = Ratio, Male, Female) %>% select(Year, Gender, Ratio) 
+
+```
+
+create graph that shows change of gender ratio of babies thourghtout 30 years
+```{r}
+graph3 <- census2010_age_4 %>% ggplot(aes(x = Year, y = Ratio, fill = Gender)) +
+  geom_bar(stat = "identity") + geom_hline(yintercept = 0.5) + geom_vline(xintercept = 1991) + labs(title = "Gender Ratio of newborn babies VS Year", y = "Gender Ratio")
+
+print(graph3)
+```
+data wrangling to get data base on ethnicity. Since ethnic minority are not affected by one child policy, we choose the most populous 6 ethnic minorities group 
+```{r}
+census2010_ethnic_1 <- census2010_ethnic %>% select(c(Age, Han, HanMale, HanFemale, Hui, HuiMale, HuiFemale, Tibetan, TibetanMale, TibetanFemale, Mongolian, MongolianMale, MongolianFemale, Uyghur, UyghurMale, UyghurFemale, Korean, KoreanMale, KoreanFemale)) %>% filter(grepl("^[[:digit:]]*$", as.character(Age))) %>%
+  mutate(Year = 2010:1911) %>% filter(Year >= 1980) %>% arrange(Year) %>%
+  gather(key = ethnic, value = total, Han, Hui, Tibetan, Mongolian, Uyghur, Korean) %>% 
+  mutate(female = ifelse(ethnic == "Han", HanFemale, 
+                       ifelse(ethnic == "Hui", HuiFemale, 
+                              ifelse(ethnic == "Tibetan", TibetanFemale, 
+                                     ifelse(ethnic == "Mongolian", MongolianFemale, 
+                                            ifelse(ethnic == "Uyghur", UyghurFemale, KoreanFemale)))))) %>% mutate(male = total - female) %>%
+  select(Year, ethnic, total, male, female) %>% 
+  gather(key = gender, value = pop, male, female)
+
+View(census2010_ethnic_1)
+```
+
+
+create graph to show population of newborn babies of each ethnic group
+```{r}
+graph4 <- census2010_ethnic_1 %>% ggplot(aes(x = Year, y = pop / total, color = gender)) + facet_grid(ethnic ~ .) + geom_point() + geom_line() +
+  geom_vline(xintercept = 1991) + labs(title = "Gender ratio of ethnic group vs Year", y = "gender ratio of ethnic minority") 
+
+print(graph4)
+```
+
+To compare Han people who are affected by one child policy, we compute Gender ratio
+```{r}
+census2010_ethnic_3 <- census2010_ethnic_1 %>% mutate(pop = pop / total)
+lm(pop ~ Year + ethnic, census2010_ethnic_3) %>% summary()
+```
+
+```{r}
+graph5 <- census2010_ethnic_3 %>% ggplot(aes(x = ethnic, y = pop, fill = gender)) + geom_boxplot() + geom_jitter(aes(color = gender), alpha = 0.5) + labs(title = "Average ratio of gender from 1980 to 2010 vs Ethnic group", y = "Ratio", x = "Ethnic group")
+
+print(graph5)
+```
+Per Capita GDP-plot
+```{r}
+GDP<-read.csv("/Users/jiahua/Documents/Berkeley/stat133/final project/GDP.csv")
+colnames(GDP)[1]<-"Area"
+
+GDP_new <- GDP[-c(1:7),c(1,2)] %>%
+  mutate(X=as.numeric(as.character(X)))%>%
+  mutate(Area=as.character(Area)) %>%
+  mutate(Area=gsub("^[ ]*","",Area)) %>%
+  filter(X!=1)
+
+census10<- census2010_final %>%
+  mutate(Area=as.character(Area)) %>%
+  mutate(Total=as.numeric(as.character(Total))) %>%
+  mutate(Ratio=as.numeric(as.character(Ratio))) %>%
+  mutate(Male=as.numeric(as.character(Male))) %>%
+  mutate(Female=as.numeric(as.character(Female)))
+
+GDP_join <- GDP_new %>% 
+  left_join(census10) %>%
+  mutate(pcGDP=X/Total)
+
+p<- GDP_join %>% 
+  ggplot(aes(x = pcGDP,y = Ratio))+
+  geom_point(alpha=0.2,size=20)+
+  geom_smooth(method = "loess")+
+  labs(title = "Gender Ratio vs Per Capita GDP",y="Gender Ratio")+
+  geom_text(aes(label=Area),col="red",size=5)+
+  theme(plot.title = element_text(size=30), axis.title=element_text(size=20))
+p
+```
+
+
+Table of illiterate population and ratio of each province
+```{r}
+illit <- read.csv("/Users/jiahua/Documents/Berkeley/stat133/final project/illiterate.csv") 
+colnames(illit) <- c("Area","IP00","IP10","IR00","IR10")
+
+illit_new<- illit %>% 
+  mutate(Area=as.character(Area)) %>%
+  mutate(Area=gsub("National Total","The Whole Country",Area)) %>%
+  mutate(IR10=as.numeric(as.character(IR10))) %>%
+  mutate(IR00=as.numeric(as.character(IR00))) 
+```
+
+data wrangling that filter out NA value and join the table of illiterate and census data
+```{r}
+illit_new_1 <- illit_new %>% filter(IP10 != "NA") %>% filter(IP00 != 2000)
+illit_new_1$Area <- census10$Area
+illit_join <- illit_new_1 %>% right_join(census10)
+```
+
+join the table of illiterate population and GDP and total population, exclude provinces that have over 30% of ethnic minorities population who are unaffected by one child policy, and divide the rest province equally into 3 category base on their GDP per capita. Use linear model and recursive partition to find out the most relevant variable to Gender Ratio.
+```{r}
+library(rpart.plot)
+
+illit_2 <- illit_join %>% filter(IP00 != 8507)
+gdp_illit_pop <- illit_2 %>% left_join(GDP_join) %>%
+  filter(!Area %in% c("Guangxi", "Guizhou", "Xinjiang", "Tibet", "Yunnan", "Ningxia", "Qinghai")) %>% arrange(desc(pcGDP)) %>% 
+  mutate(status = ifelse(pcGDP >= pcGDP[12], "developed", "underdeveloped")) %>%
+  arrange(desc(Ratio)) 
+
+rpart(Ratio ~ IR10, gdp_illit_pop) %>% rpart.plot::prp(type=3)
+
+lm(Ratio ~ IR10, gdp_illit_pop) %>% summary() 
+
+```
+
+We assume that the developed province will be the most balance. However, as the graph suggests, it looks like there is not much difference. We assume that it is because there are a lot of labor from other less developed province, who would like to work at these relatively affluent province, which is a China-only phenomenon. Therefore, we introduce a new concept called Hukou which is also a Chinese concept. It basically refers to the populaion that settle in a particular area. Thus we hope to exclude the effect of male labor who migrant a lot. The following data table is from the same resource as previous and undergo the same pre-processing such as translation.
+```{r}
+census2010_hukou <- read.csv("/Users/jiahua/Documents/Berkeley/stat133/final project/10census_hukou.csv")
+
+census2010_hukou_1 <- census2010_hukou %>% select(c(X, X.4, X.5, X.6)) %>%
+  filter(grepl("[[:digit:]]", X.4)) %>% filter(X != "The whole country") %>%
+  mutate(X = as.character(X))
+
+colnames(census2010_hukou_1) <- c("Area", "Subtotal", "Male", "Female")
+
+GDP_2 <- GDP_join %>% select(c(Area, X, pcGDP))
+
+Hukou_GDP <- census2010_hukou_1 %>% left_join(GDP_2) %>% 
+  mutate(Male = as.numeric(as.character(Male))) %>% 
+  mutate(Female = as.numeric(as.character(Female))) %>% 
+  mutate(ratio = Male / Female) %>% filter(!Area %in% c("Guangxi", "Guizhou", "Xinjiang", "Tibet", "Yunnan", "Ningxia", "Qinghai")) %>% arrange(desc(pcGDP)) %>% 
+  mutate(status = ifelse(pcGDP >= pcGDP[8], "developed", 
+                         ifelse(pcGDP >= pcGDP[16], "developing", "underdeveloped"))) %>%
+  arrange(desc(ratio))
+
+Hukou_GDP_1 <- illit_2 %>% select(c(Area, IR10)) %>% right_join(Hukou_GDP)
+
+```
+
+```{r}
+lm(ratio ~ pcGDP + status, Hukou_GDP_1) %>% summary()
+```
+
+
+```{r}
+graph7 <- Hukou_GDP_1 %>% ggplot(aes(x = IR10, y = ratio, group = status)) +
+  geom_point(aes(color = status)) + geom_smooth(aes(color = status), method = "lm")
+
+print(graph7)
+```
+```{r}
+library(rvest)
+SetOfTables <- 
+  "https://en.wikipedia.org/wiki/List_of_countries_by_sex_ratio" %>%
+  read_html() %>%
+  html_nodes(xpath = '//*[@id="mw-content-text"]/table') %>%
+  html_table(fill=TRUE)
+
+```
